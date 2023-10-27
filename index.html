@@ -1,0 +1,225 @@
+<html>
+
+<head>
+    <title>Asteroids test</title>
+    <style type="text/css">
+        body {
+            background-color: #aaaaaa;
+        }
+
+        #test {
+            float: right;
+            width: 30%;
+            white-space: pre;
+            text-align: right;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="canvas" width="800" height="600"></canvas>
+    <div id="test"></div><br />
+    <image src="ship.png" id="ship"></image>
+    <image src="proj.png" id="proj"></image>
+    Control with WASDQE and fire with Shift. This project is far from done and very untested
+    <script>
+        //Prototypes
+        function Position(x, y) {
+            this.x = x;
+            this.y = y;
+        }
+        Position.prototype.add = function (x, y) {
+            this.x += x;
+            this.y += y;
+        }
+        Position.prototype.app = function (a, d) {
+            if (d == undefined) { d = 1; }
+            this.x += a.x * d;
+            this.y += a.y * d;
+        }
+        Position.prototype.nor = function (l1, l2) {
+            this.x = limit(this.x, l1);
+            this.y = limit(this.y, l2);
+        }
+
+        function Momentum(x, y) {
+            if (x == undefined) { x = 0; }
+            if (y == undefined) { y = 0; }
+            this.x = x;
+            this.y = y;
+        }
+        Momentum.prototype.add = function (x, y) {
+            this.x += x;
+            this.y += y;
+        }
+        Momentum.prototype.app = function (a, f) {
+            if (f == undefined) { f = 1; }
+            this.x += a.x * f;
+            this.y += a.y * f;
+        }
+
+        function Angle(a) {
+            if (a == undefined) { a = 0; }
+            this.a = a;
+        }
+        Angle.prototype.dir = function () {
+            var t = this.a / (180 / Math.PI);
+            return { x: Math.cos(t), y: Math.sin(t) };
+        }
+        Angle.prototype.dirm = function (d) {
+            var t = limit(this.a + d) / (180 / Math.PI);
+            return { x: Math.cos(t), y: Math.sin(t) };
+        }
+        Angle.prototype.add = function (a) {
+            this.a = limit(this.a + a, 360);
+        }
+
+        function Level(x, y) {
+            this.x = x;
+            this.y = y;
+            this.e = [];
+        }
+        Level.prototype.tick = function () {
+            for (var i = 0; i < this.e.length; i++) {
+                var c = this.e[i];
+                this.handle(c);
+            }
+            this.handle(player);
+        }
+        Level.prototype.handle = function (c) {
+            c.pos.app(c.mom);
+            c.pos.nor(this.x, this.y);
+        }
+
+        function Projectile(shoe) {
+            this.rot = new Angle(shoe.rot.a);
+            this.pos = new Position(shoe.pos.x, shoe.pos.y);
+            this.mom = new Momentum(shoe.mom.x, shoe.mom.y);
+            this.mom.app(this.rot.dir(), 10);
+        }
+
+        //Functions
+        function limit(v, l) {
+            if (l <= 0.01) { console.log("Value: limit " + l + " too low"); return }
+            while (v >= l) { v -= l; }
+            while (v < 0) { v += l; }
+            return v;
+        }
+
+        function clone(a) {
+            var out = a.constructor();
+            for (var attr in a) {
+                if (out.hasOwnProperty(attr)) {
+                    out[attr] = a[attr];
+                }
+            };
+            return out;
+        }
+
+        function drawImg(c, i, x, y, a) {
+            c.save();
+            c.translate(x, y);
+            c.rotate(a * radang);
+            c.drawImage(i, -(i.width / 2), -(i.height / 2));
+            c.restore();
+        }
+
+        function tick() {
+            player.rot.add(keys.dir() * 30);
+            if (keys.fired()) {
+                level.e.push(new Projectile(player));
+            }
+            var m = player.rot.dir();
+            var acc = keys.acc();
+            player.mom.add(m.x * acc, m.y * acc);
+            var str = keys.str();
+            m = player.rot.dirm(90);
+            player.mom.add(m.x * str, m.y * str);
+            level.tick();
+            var out = { keys: keys.pressed, player: player, entities: level.e.length }
+            test.textContent = JSON.stringify(out, null, 2);
+            draw();
+        }
+
+        function draw() {
+            var c = canvas.getContext("2d");
+            c.fillStyle = "#000000";
+            c.fillRect(0, 0, 800, 600);
+            for (var i = 0; i < level.e.length; i++) {
+                var o = level.e[i];
+                drawImg(c, proj, o.pos.x, o.pos.y, limit(o.rot.a + 90, 360));
+            }
+            var pp = player.pos;
+            drawImg(c, ship, pp.x, pp.y, limit(player.rot.a + 90, 360));
+        }
+
+        //Variables
+        var player = { pos: new Position(400, 300), rot: new Angle(), mom: new Momentum(0, 0) };
+        var level = new Level(800, 600);
+        var radang = Math.PI / 180;
+        var ship = document.getElementById("ship");
+        var proj = document.getElementById("proj");
+        var test = document.getElementById("test");
+        var canvas = document.getElementById("canvas");
+        var debug = false;
+
+        var usedkeys = [87, 68, 83, 65, 81, 69, 16];
+
+        var keys = {
+            "pressed": {},
+            "checkp": function (k) {
+                if (this.pressed[k]) {
+                    return true;
+                }
+                return false;
+            },
+            "dir": function () {
+                if (this.checkp(68)) {
+                    return 1;
+                } else if (this.checkp(65)) {
+                    return -1;
+                }
+                return 0;
+            },
+            "acc": function () {
+                if (this.checkp(87)) {
+                    return 1;
+                } else if (this.checkp(83)) {
+                    return -1;
+                }
+                return 0;
+            },
+            "str": function () {
+                if (this.checkp(69)) {
+                    return 1;
+                } else if (this.checkp(81)) {
+                    return -1;
+                }
+                return 0;
+            },
+            "fired": function () {
+                if (this.checkp(16)) {
+                    return true;
+                }
+                return false;
+            }
+        };
+
+        //Init
+        document.onkeydown = function (a) {
+            if (usedkeys.indexOf(a.keyCode) != -1) {
+                keys.pressed[a.keyCode] = 1;
+            }
+            if (debug) { console.log("Down " + a.keyCode); }
+        }
+        document.onkeyup = function (a) {
+            if (usedkeys.indexOf(a.keyCode) != -1) {
+                keys.pressed[a.keyCode] = 0;
+            }
+            if (debug) { console.log("Up " + a.keyCode); }
+        }
+        setInterval(tick, 50);
+    </script>
+</body>
+
+</html>
